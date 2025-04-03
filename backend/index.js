@@ -1,122 +1,59 @@
 const express = require("express");
 const { ethers } = require("ethers");
+const { JsonRpcProvider } = require("ethers");
 const cors = require("cors");
-const sqlite3 = require('sqlite3').verbose();
 require("dotenv").config();
 
 const app = express();
-const PORT = 4000;
-
+const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-// Ethereum provider
-const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+// Set up Ethereum provider and contract.
+const provider = new JsonRpcProvider(process.env.RPC_URL);
 const contractAddress = process.env.CONTRACT_ADDRESS;
 const abi = require("./abi.json");
 const contract = new ethers.Contract(contractAddress, abi, provider);
 
-// SQLite Database Setup
-const db = new sqlite3.Database('./vote_history.db', (err) => {
-    if (err) console.error('Database error:', err);
-    else db.run(`CREATE TABLE IF NOT EXISTS votes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        voterPublicKey TEXT,
-        candidate TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-});
-
-// Verify Proof
+/**
+ * Off-chain endpoint to verify the proof of identity.
+ * The voter sends: { message, signature, publicKey }
+ * The backend uses ethers.utils.verifyMessage() to ensure that the signature was produced by the provided publicKey.
+ */
 app.post("/verify-proof", async (req, res) => {
     try {
+        console.log("Incoming /verify-proof request:", req.body);
         const { message, signature, publicKey } = req.body;
+        if (!message || !signature || !publicKey) {
+            throw new Error("Missing required parameters");
+        }
+        // Use ethers.verifyMessage for ethers v6.
         const recoveredAddr = ethers.verifyMessage(message, signature);
+        console.log("Recovered address:", recoveredAddr);
+        const success = recoveredAddr.toLowerCase() === publicKey.toLowerCase();
         res.json({
-            success: recoveredAddr.toLowerCase() === publicKey.toLowerCase(),
-            message: recoveredAddr ? "Proof verified!" : "Invalid proof!"
+            success,
+            message: success ? "Proof verified!" : "Invalid proof!"
         });
     } catch (err) {
+        console.error("Verification error in /verify-proof:", err);
         res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// Cast Vote
-app.post("/cast-vote", async (req, res) => {
-    try {
-        const { candidate, publicKey, signature } = req.body;
-        const voterAddress = ethers.getAddress(publicKey);
 
-        // Verify signature
-        const message = `Voting for: ${candidate}`;
-        const recoveredAddr = ethers.verifyMessage(message, signature);
-        
-        // Check if the recovered address matches the voter's address
-        if (recoveredAddr.toLowerCase() !== voterAddress.toLowerCase()) {
-            return res.status(401).json({ success: false, message: "Signature mismatch" });
-        }
-
-        // Generate identity hash for anonymity
-        const identityHash = keccak256(toUtf8Bytes(publicKey));
-
-        // Check if the voter is registered
-        const [registeredPublicKey, registeredCertificate] = await contract.getIdentity(voterAddress);
-        if (registeredPublicKey.length === 0 || registeredCertificate.length === 0) {
-            return res.status(403).json({ success: false, message: "Voter not registered" });
-        }
-
-        // Verify the identity certificate on-chain
-        const isIdentityVerified = await contract.verifyIdentityCertificate(
-            ethers.toUtf8Bytes(registeredCertificate),
-            identityHash
-        );
-
-        if (!isIdentityVerified) {
-            return res.status(401).json({ success: false, message: "Identity verification failed" });
-        }
-
-        // Check voting status
-        const hasVoted = await contract.hasVoted(voterAddress);
-        if (hasVoted) {
-            return res.status(400).json({ success: false, message: "Already voted" });
-        }
-
-        // Record the vote in the database with the hashed identity
-        db.run(
-            `INSERT INTO votes (voterPublicKey, candidate, identityHash) VALUES (?, ?, ?)`,
-            [voterAddress, candidate, identityHash],
-            (err) => {
-                if (err) {
-                    console.error('DB insert error:', err);
-                    return res.status(500).json({ success: false, error: "Database error" });
-                }
-
-                // Respond with success and the hashed identity for transparency
-                res.json({
-                    success: true,
-                    message: "Verification complete - proceed with transaction",
-                    identityHash: identityHash,
-                });
-            }
-        );
-
-    } catch (err) {
-        console.error('Cast vote error:', err);
-        res.status(500).json({ 
-            success: false, 
-            error: err.reason || err.message || "Internal server error"
-        });
-    }
-});
-
-// Get Votes
+/**
+ * Endpoint to get vote counts.
+ * This queries the contract’s candidates and retrieves each candidate’s vote count.
+ */
 app.get("/get-votes", async (req, res) => {
     try {
-        const candidateCount = await contract.candidates.length();
+        const candidateCount = await contract.getCandidateCount();
+        const count = Number(candidateCount);
         const candidates = [];
-        
-        for (let i = 0; i < candidateCount; i++) {
-            candidates.push(await contract.candidates(i));
+
+        for (let i = 0; i < count; i++) {
+            candidates.push(await contract.getCandidate(i)); // Use getCandidate()
         }
 
         const results = await Promise.all(
@@ -125,20 +62,33 @@ app.get("/get-votes", async (req, res) => {
                 count: (await contract.getVoteCount(candidate)).toString()
             }))
         );
-
         res.json({ success: true, results });
     } catch (err) {
-        console.error('Get votes error:', err);
+        console.error("Error fetching votes:", err);
         res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// Get History
-app.get("/get-vote-history", (req, res) => {
-    db.all("SELECT * FROM votes ORDER BY timestamp DESC", (err, rows) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        res.json({ success: true, voteHistory: rows });
-    });
+
+/**
+ * Endpoint to get vote history.
+ * This reads past VoteCast events from the blockchain.
+ */
+app.get("/get-vote-history", async (req, res) => {
+    try {
+        const filter = contract.filters.VoteCast();
+        const events = await contract.queryFilter(filter, 0, "latest");
+        // Format the events data.
+        const voteHistory = events.map(event => ({
+            voter: event.args.voter,
+            candidate: event.args.candidate,
+            totalVotes: event.args.totalVotes.toString(),
+            blockNumber: event.blockNumber
+        }));
+        res.json({ success: true, voteHistory });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

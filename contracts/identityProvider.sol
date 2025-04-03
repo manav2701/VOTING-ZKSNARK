@@ -11,7 +11,6 @@ contract VotingDApp {
         string publicKey;           // Voter's public key (verifying key)
         string identityCertificate; // Identity certificate (e.g., a signature over the identity hash)
     }
-
     // Mapping from voter address to their registered identity.
     mapping(address => Identity) private identities;
     
