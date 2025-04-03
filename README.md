@@ -85,19 +85,9 @@ contract IdentityProvider {
 }
 ```
 
----
-## Technologies Used
-- **Solidity** (Smart Contract Development)
-- **Circom** (Zero-Knowledge Circuit Compiler)
-- **SnarkJS** (ZK Proof Verification)
-- **Ethereum** (Blockchain Deployment)
-- **IPFS** (Decentralized Storage for Proofs)
-- **React + Metamask** (Frontend Integration)
-
----
 ## Credits
 This implementation is inspired by the research paper:
-**"Zero-Knowledge Identity Authentication Framework"** (provided in the uploaded document).
+Marcellino, Matthew, Arya Wicaksana, and Moeljono Widjaja. "Zero-knowledge Identity Authentication for E-voting System." Journal of Internet Services and Information Security 14.2 (2024): 18-31.
 
 ---
 ## Future Enhancements
