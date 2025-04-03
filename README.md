@@ -37,28 +37,29 @@ This project implements a Zero-Knowledge Succinct Non-Interactive Argument of Kn
    - The voter registers with an identity provider (e.g., government or DAO).
    - The provider generates a cryptographic proof of eligibility.
    
-   **![Screenshot 2025-04-03 064427](https://github.com/user-attachments/assets/fb069504-7479-4ff5-bfaa-d4426b07652c)
-**
+   ![Screenshot 2025-04-03 064427](https://github.com/user-attachments/assets/fb069504-7479-4ff5-bfaa-d4426b07652c)
+   ![Screenshot 2025-04-03 064443](https://github.com/user-attachments/assets/79e474d2-0bbc-4851-a56b-3ddb9ecb9d72)
    
-2. **Proof Generation** (Off-Chain)
+3. **Proof Generation** (Off-Chain)
    - The voter generates a Zero-Knowledge Proof using Circom.
    - This proof asserts eligibility without revealing identity.
    
-   **Image Placeholder: Proof Generation**
+   ![Screenshot 2025-04-03 064512](https://github.com/user-attachments/assets/d002d0b1-0f3f-4c89-9b6a-0521d6800664)
    
-3. **Proof Submission** (On-Chain)
+4. **Proof Submission** (On-Chain)
    - The voter submits the proof to the smart contract.
    - The smart contract verifies the proof.
    
-   **Image Placeholder: Proof Submission Process**
+   ![Screenshot 2025-04-03 064541](https://github.com/user-attachments/assets/646c538a-682c-49e3-917e-58821713bd8d)
+
    
-4. **Voting Process** (On-Chain)
+5. **Voting Process** (On-Chain)
    - Once verified, the voter casts their vote.
    - The vote is recorded on-chain, ensuring integrity.
    
    **Image Placeholder: Voting Execution**
    
-5. **Result Tallying** (On-Chain)
+6. **Result Tallying** (On-Chain)
    - The votes are counted via the smart contract.
    - Results are publicly verifiable while keeping voter identities private.
    
