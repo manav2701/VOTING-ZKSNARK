@@ -73,13 +73,10 @@ The contract includes the following:
 - **Tallying System**
 
 ```solidity
-// Solidity contract snippet
 pragma solidity ^0.8.0;
 
 contract IdentityProvider {
-    // Verify zk-SNARK proof (simplified example)
     function verifyProof(bytes memory proof) public view returns (bool) {
-        // Verification logic
         return true; // Placeholder
     }
 }
